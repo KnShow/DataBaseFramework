@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     tools:context="com.kn0527.cn.databaseframework.MainActivity">
 
     <TextView
@@ -12,5 +13,26 @@
         android:onClick="insertObject"
         android:padding="15dp"
         android:text="INSERT" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:onClick="update"
+        android:padding="15dp"
+        android:text="UPDATE" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:onClick="select"
+        android:padding="15dp"
+        android:text="SELECT" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:onClick="delete"
+        android:padding="15dp"
+        android:text="DELETE" />
 
-</android.support.constraint.ConstraintLayout>
+</LinearLayout>

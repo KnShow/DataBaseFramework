@@ -19,6 +19,10 @@ public class User {
         this.password = password;
     }
 
+    public User() {
+
+    }
+
     public Integer getId() {
         return id;
     }

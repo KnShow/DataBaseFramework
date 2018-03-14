@@ -9,8 +9,10 @@ import com.kn0527.cn.databaseframework.annotation.DbField;
 import com.kn0527.cn.databaseframework.annotation.DbTable;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,6 +51,7 @@ public class BaseDao<T> implements IBaseDao<T> {
             sqLiteDatabase.execSQL(createTabSql);
             cacheMap = new HashMap<>();
             initCacheMap();
+            isInit = true;
         }
         return false;
     }
@@ -91,36 +94,37 @@ public class BaseDao<T> implements IBaseDao<T> {
     private String getCreateTabSql() {
         //create table if not exists tb_user(_id INTEGER,name TEXT,password TEXT)
         StringBuffer stringBuffer = new StringBuffer();
-        stringBuffer.append("CREATE TABLE IF NOT EXISTS " + tableName + "(");
+        stringBuffer.append("create table if not exists ");
+        stringBuffer.append(tableName + "(");
         //反射获取所有字段
         Field[] fields = entityClass.getDeclaredFields();
         for (Field field : fields) {
             Class type = field.getType();
             if (field.getAnnotation(DbField.class) != null) {
                 if (type == String.class)
-                    stringBuffer.append(field.getAnnotation(DbField.class).value() + "TEXT,");
+                    stringBuffer.append(field.getAnnotation(DbField.class).value() + " TEXT,");
                 else if (type == Integer.class)
-                    stringBuffer.append(field.getAnnotation(DbField.class).value() + "INTEGER,");
+                    stringBuffer.append(field.getAnnotation(DbField.class).value() + " INTEGER,");
                 else if (type == Long.class)
-                    stringBuffer.append(field.getAnnotation(DbField.class).value() + "BIGINT,");
+                    stringBuffer.append(field.getAnnotation(DbField.class).value() + " BIGINT,");
                 else if (type == Double.class)
-                    stringBuffer.append(field.getAnnotation(DbField.class).value() + "DOUBLE,");
+                    stringBuffer.append(field.getAnnotation(DbField.class).value() + " DOUBLE,");
                 else if (type == Byte[].class)
-                    stringBuffer.append(field.getAnnotation(DbField.class).value() + "BLOB,");
+                    stringBuffer.append(field.getAnnotation(DbField.class).value() + " BLOB,");
                 else
-                    //不支持的型号
+                    //不支持的类型
                     continue;
             } else {
                 if (type == String.class)
-                    stringBuffer.append(field.getName() + "TEXT,");
+                    stringBuffer.append(field.getName() + " TEXT,");
                 else if (type == Integer.class)
-                    stringBuffer.append(field.getName() + "INTEGER,");
+                    stringBuffer.append(field.getName() + " INTEGER,");
                 else if (type == Long.class)
-                    stringBuffer.append(field.getName() + "BIGINT,");
+                    stringBuffer.append(field.getName() + " BIGINT,");
                 else if (type == Double.class)
-                    stringBuffer.append(field.getName() + "DOUBLE,");
+                    stringBuffer.append(field.getName() + " DOUBLE,");
                 else if (type == Byte[].class)
-                    stringBuffer.append(field.getName() + "BLOB,");
+                    stringBuffer.append(field.getName() + " BLOB,");
                 else
                     //不支持的型号
                     continue;
@@ -142,9 +146,112 @@ public class BaseDao<T> implements IBaseDao<T> {
         return result;
     }
 
-    private Map<String, String> getValues(T entity) {
+    @Override
+    public long update(T entity, T where) {
+//        sqLiteDatabase.update(tableName,contentValue,"name=?,",new String[]{"kn"});
+        int result = -1;
+        Map<String, String> values = getValues(entity);
+        ContentValues contentValues = getContentValues(values);
+        Map<String, String> whereCause = getValues(where);
+        //获取where和whereArgs
+        Condition condition = new Condition(whereCause);
+        result = sqLiteDatabase.update(tableName, contentValues, condition.whereCasue, condition.whereAres);
+        return result;
+    }
+
+    @Override
+    public long delete(T where) {
+//        sqLiteDatabase.delete(tableName,whereClause,whereArgs);
+        long result = -1;
+        Map<String, String> whereClause = getValues(where);
+        Condition condition = new Condition(whereClause);
+        result = sqLiteDatabase.delete(tableName, condition.whereCasue, condition.whereAres);
+        return result;
+    }
+
+    @Override
+    public List<T> query(T where) {
+//        sqLiteDatabase.query(tableName,null,"id=?",new String[],null,null,orderBy,"1,5");
+        return query(where, null, null, null);
+    }
+
+    public List<T> query(T where, String orderBy, Integer startIndex, Integer limit) {
+        Map<String, String> values = getValues(where);
+        String limitString = null;
+        if (startIndex != null && limit != null)
+            limitString = startIndex + "," + limit;
+        Condition condition = new Condition(values);
+        Cursor cursor = sqLiteDatabase.query(tableName, null, condition.whereCasue, condition.whereAres, null, null, orderBy, limitString);
+        List<T> result = getResult(cursor, where);
+        return result;
+    }
+
+    //obj是用来表示User类的结构
+    private List<T> getResult(Cursor cursor, T obj) {
+        ArrayList result = new ArrayList<>();
+        Object item = null;
+        while (cursor.moveToNext()) {
+            try {
+                item = obj.getClass().newInstance();//new User();
+                Iterator iterator = cacheMap.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry entry = (Map.Entry) iterator.next();
+                    String columnName = (String) entry.getKey();
+                    int columnIndex = cursor.getColumnIndex(columnName);
+                    Field field = (Field) entry.getValue();
+                    if (columnIndex != -1) {
+                        Class type = field.getType();
+                        if (type == String.class) {
+                            field.set(item, cursor.getString(columnIndex));
+                        } else if (type == Integer.class) {
+                            field.set(item, cursor.getInt(columnIndex));
+                        } else if (type == Double.class) {
+                            field.set(item, cursor.getDouble(columnIndex));
+                        } else if (type == Byte[].class) {
+                            field.set(item, cursor.getBlob(columnIndex));
+                        } else if (type == Long.class) {
+                            field.set(item, cursor.getLong(columnIndex));
+                        } else {
+                            continue;
+                        }
+                    }
+                }
+                result.add(item);
+            } catch (InstantiationException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+        }
+        return result;
+    }
+
+    private class Condition {
+        private String whereCasue;//"name = ?"
+        private String[] whereAres;//new String[]{"kn"}
+
+        private Condition(Map<String, String> whereValues) {
+            ArrayList<String> list = new ArrayList();//whereArgs里的内容存入list
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("1=1");
+            Set keys = whereValues.keySet();
+            Iterator iterator = keys.iterator();
+            while (iterator.hasNext()) {
+                String key = (String) iterator.next();
+                String value = whereValues.get(key);
+                if (value != null) {
+                    stringBuilder.append(" and " + key + "=?");
+                    list.add(value);
+                }
+            }
+            this.whereCasue = stringBuilder.toString();
+            this.whereAres = (String[]) list.toArray(new String[list.size()]);
+        }
+    }
+
+    private Map<String, String> getValues(T entity) {//User
         HashMap<String, String> map = new HashMap<>();
-        Iterator<Field> fieldIterator = cacheMap.values().iterator();
+        Iterator<Field> fieldIterator = cacheMap.values().iterator();//获取所有的values
         while (fieldIterator.hasNext()) {
             Field field = fieldIterator.next();
             field.setAccessible(true);
@@ -183,4 +290,6 @@ public class BaseDao<T> implements IBaseDao<T> {
         }
         return contentValues;
     }
+
+
 }
